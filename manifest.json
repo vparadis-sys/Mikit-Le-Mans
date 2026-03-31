@@ -1,0 +1,25 @@
+{
+  "name": "Mikit Terrains — Analyse Parcelle & Risques",
+  "short_name": "Mikit Terrains",
+  "description": "Outil d'analyse parcellaire, risques, urbanisme et marché immobilier pour Mikit Le Mans",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#faf8f9",
+  "theme_color": "#6B1C3F",
+  "orientation": "any",
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
