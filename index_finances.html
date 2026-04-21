@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPRDS — Pilotage financier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0c10;--bg2:#10141c;--bg3:#161c28;--border:#1e2736;
+  --accent:#4f8ef7;--green:#2dd4a0;--orange:#f5a23e;--red:#ef5350;
+  --text:#dce4f0;--text2:#7a8799;--text3:#3a4454;
+  --font:'Syne',sans-serif;--mono:'DM Mono',monospace;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
+
+/* ── AUTH ── */
+#auth{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999;flex-direction:column;gap:32px}
+.auth-card{width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:36px;text-align:center}
+.auth-logo{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--text2);margin-bottom:28px}
+.auth-card h1{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-bottom:6px}
+.auth-card p{font-size:13px;color:var(--text2);margin-bottom:28px}
+.auth-input{width:100%;padding:13px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:15px;letter-spacing:.12em;outline:none;transition:border .2s}
+.auth-input:focus{border-color:var(--accent)}
+.auth-btn{margin-top:14px;width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;transition:.15s;letter-spacing:.02em}
+.auth-btn:hover{opacity:.9}
+.auth-err{font-size:12px;color:var(--red);min-height:16px;margin-top:10px}
+
+/* ── LAYOUT ── */
+#app{display:none;height:100vh;flex-direction:column}
+header{height:52px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0}
+.h-logo{font-size:14px;font-weight:700;letter-spacing:-.2px}
+.h-logo span{color:var(--accent)}
+.h-badge{font-size:11px;font-family:var(--mono);color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 10px}
+.h-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn-sm{padding:6px 12px;border-radius:6px;font-size:12px;font-family:var(--font);cursor:pointer;border:1px solid var(--border);background:none;color:var(--text2);transition:.15s}
+.btn-sm:hover{color:var(--text);border-color:var(--text2)}
+.btn-sm.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-sm.primary:hover{opacity:.85}
+.btn-sm.danger:hover{color:var(--red);border-color:var(--red)}
+
+nav{height:44px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 20px;gap:2px;flex-shrink:0;overflow-x:auto}
+.tab{padding:0 16px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:.15s}
+.tab.active{color:var(--text);border-color:var(--accent)}
+.tab:hover:not(.active){color:var(--text)}
+.tab-icon{font-size:14px}
+
+main{flex:1;overflow-y:auto;padding:20px}
+.inner{max-width:1280px;margin:0 auto}
+
+/* ── GRID ── */
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:880px){.g4,.g3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.g4,.g3,.g2{grid-template-columns:1fr}}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.card-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-bottom:10px}
+.kpi{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1}
+.kpi-sub{font-size:12px;color:var(--text2);margin-top:5px}
+.kpi-delta{font-size:12px;font-family:var(--mono);margin-top:4px}
+.c-green{color:var(--green)}.c-orange{color:var(--orange)}.c-red{color:var(--red)}.c-blue{color:var(--accent)}.c-dim{color:var(--text2)}
+
+/* ── SECTION ── */
+.sec{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec::before{content:'';width:3px;height:14px;background:var(--accent);border-radius:2px;flex-shrink:0}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.018)}
+.r{text-align:right;font-family:var(--mono);font-size:12px}
+
+/* ── PILL ── */
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill-g{background:rgba(45,212,160,.12);color:var(--green)}
+.pill-o{background:rgba(245,162,62,.12);color:var(--orange)}
+.pill-r{background:rgba(239,83,80,.12);color:var(--red)}
+.pill-b{background:rgba(79,142,247,.12);color:var(--accent)}
+.pill-dim{background:rgba(122,135,153,.1);color:var(--text2)}
+
+/* ── PROGRESS ── */
+.bar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-top:8px}
+.bar-fill{height:100%;border-radius:2px}
+
+/* ── CHART ── */
+.ch{position:relative;height:210px}
+.ch-lg{position:relative;height:260px}
+
+/* ── FLUX ── */
+.flux-grp{margin-bottom:18px}
+.flux-grp-hdr{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px;display:flex;justify-content:space-between}
+.flux-grp-hdr span{color:var(--green);font-family:var(--mono)}
+.flux-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.flux-item:last-child{border:none}
+.flux-name{font-size:13px}
+.flux-step{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.flux-amt{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--green)}
+
+/* ── ALERT ── */
+.alert-item{border-radius:8px;padding:14px 16px;margin-bottom:12px;border:1px solid}
+.alert-g{background:rgba(45,212,160,.06);border-color:rgba(45,212,160,.2)}
+.alert-o{background:rgba(245,162,62,.06);border-color:rgba(245,162,62,.2)}
+.alert-r{background:rgba(239,83,80,.06);border-color:rgba(239,83,80,.2)}
+.alert-b{background:rgba(79,142,247,.06);border-color:rgba(79,142,247,.2)}
+.alert-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.alert-msg{font-size:12px;color:var(--text2)}
+
+/* ── UPLOAD PAGE ── */
+.upload-zone{border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg2)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(79,142,247,.04)}
+.upload-zone input{display:none}
+.upload-icon{font-size:40px;margin-bottom:16px}
+.upload-title{font-size:18px;font-weight:700;margin-bottom:8px;letter-spacing:-.2px}
+.upload-sub{font-size:13px;color:var(--text2);margin-bottom:24px}
+.upload-btn{display:inline-block;padding:11px 28px;background:var(--accent);color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+.upload-btn:hover{opacity:.85}
+.upload-status{margin-top:20px;font-size:13px;font-family:var(--mono);color:var(--text2)}
+.last-import{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;display:flex;align-items:center;gap:14px}
+.last-import-icon{font-size:24px}
+.last-import-info{flex:1}
+.last-import-name{font-size:14px;font-weight:600}
+.last-import-date{font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:2px}
+.progress-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+.step-icon{font-size:20px;margin-bottom:6px}
+.step-label{font-size:12px;color:var(--text2)}
+.step-val{font-size:13px;font-weight:600;margin-top:2px;font-family:var(--mono)}
+.step.done{border-color:var(--green);background:rgba(45,212,160,.04)}
+.step.done .step-label{color:var(--green)}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth">
+  <div class="auth-logo">VPRDS Home Solutions</div>
+  <div class="auth-card">
+    <h1>Pilotage financier</h1>
+    <p>Accès réservé — saisir le mot de passe</p>
+    <input class="auth-input" type="password" id="pwd" placeholder="••••••••" autocomplete="current-password">
+    <button class="auth-btn" onclick="doAuth()">Accéder →</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="h-logo">VPRDS <span>Home Solutions</span></div>
+    <div class="h-badge" id="h-badge">Aucune donnée</div>
+    <div class="h-right">
+      <button class="btn-sm primary" onclick="goTab('import')">⬆ Importer Excel</button>
+      <button class="btn-sm danger" onclick="doLogout()">Déconnexion</button>
+    </div>
+  </header>
+
+  <nav>
+    <div class="tab active" data-tab="treso"><span class="tab-icon">🏦</span>Trésorerie</div>
+    <div class="tab" data-tab="cr"><span class="tab-icon">📊</span>Compte de résultat</div>
+    <div class="tab" data-tab="chantiers"><span class="tab-icon">🏗</span>Chantiers</div>
+    <div class="tab" data-tab="charges"><span class="tab-icon">📉</span>Charges</div>
+    <div class="tab" data-tab="alertes"><span class="tab-icon">⚠️</span>Alertes</div>
+    <div class="tab" data-tab="import"><span class="tab-icon">📂</span>Importer</div>
+  </nav>
+
+  <main>
+    <div class="inner">
+      <div id="tab-treso" class="tab-content"></div>
+      <div id="tab-cr" class="tab-content" style="display:none"></div>
+      <div id="tab-chantiers" class="tab-content" style="display:none"></div>
+      <div id="tab-charges" class="tab-content" style="display:none"></div>
+      <div id="tab-alertes" class="tab-content" style="display:none"></div>
+      <div id="tab-import" class="tab-content" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+// AUTH
+// ============================================================
+const PWD_HASH='9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
+async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
+
+async function doAuth(){
+  const h=await sha256(document.getElementById('pwd').value);
+  if(h===PWD_HASH){sessionStorage.setItem('auth','1');showApp()}
+  else{document.getElementById('auth-err').textContent='Mot de passe incorrect';document.getElementById('pwd').value=''}
+}
+document.getElementById('pwd').onkeydown=e=>{if(e.key==='Enter')doAuth()};
+function doLogout(){sessionStorage.removeItem('auth');location.reload()}
+function showApp(){
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').style.display='flex';
+  initApp();
+}
+if(sessionStorage.getItem('auth')==='1')showApp();
+
+// ============================================================
+// NAV
+// ============================================================
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>goTab(t.dataset.tab));
+function goTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));
+  document.querySelectorAll('.tab-content').forEach(c=>c.style.display='none');
+  document.getElementById('tab-'+id).style.display='block';
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+const euro=(v,d=0)=>v==null||isNaN(v)?'—':new Intl.NumberFormat('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d}).format(v)+' €';
+const kEuro=v=>v==null||isNaN(v)?'—':new Intl.NumberFormat('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(v)+' k€';
+const pct=(r,b)=>b&&b!==0?Math.round(r/b*100):null;
+function pillCls(p){if(p===null)return'dim';if(p<=100)return'g';if(p<=130)return'o';return'r'}
+function pillLbl(p){if(p===null)return'—';if(p<=100)return'✓ OK';if(p<=130)return'⚡ Attention';return'⛔ Dépass.'}
+function deltaColor(v,isCharge=false){const ok=isCharge?v<=0:v>=0;return ok?'c-green':'c-orange'}
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
+function mkChart(id,cfg){destroyChart(id);const c=document.getElementById(id);if(!c)return;charts[id]=new Chart(c.getContext('2d'),cfg)}
+
+function kpiCard(label,val,sub,delta,deltaClass){
+  return`<div class="card"><div class="card-label">${label}</div><div class="kpi">${val}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}${delta!=null?`<div class="kpi-delta ${deltaClass||'c-dim'}">${delta}</div>`:''}</div>`;
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let D=null;
+
+function loadFromStorage(){
+  try{const s=localStorage.getItem('vprds_data');if(s){D=JSON.parse(s);return true}}catch(e){}
+  return false;
+}
+function saveToStorage(){try{localStorage.setItem('vprds_data',JSON.stringify(D))}catch(e){}}
+
+// ============================================================
+// INIT
+// ============================================================
+function initApp(){
+  // Tenter de charger depuis localStorage
+  if(loadFromStorage()){
+    renderAll();
+    document.getElementById('h-badge').textContent='MàJ: '+D.meta.date_maj+' — '+D.meta.periode_gl;
+  } else {
+    // Pas de données — afficher page import
+    renderImportPage(true);
+    goTab('import');
+  }
+  renderImportPage(false);
+}
+
+function renderAll(){
+  renderTreso();
+  renderCR();
+  renderChantiers();
+  renderCharges();
+  renderAlertes();
+}
+
+// ============================================================
+// IMPORT PAGE
+// ============================================================
+function renderImportPage(firstTime){
+  const last=D?`<div class="last-import" style="margin-bottom:20px">
+    <div class="last-import-icon">📊</div>
+    <div class="last-import-info">
+      <div class="last-import-name">Dernière importation : ${D.meta.periode_gl}</div>
+      <div class="last-import-date">Mise à jour le ${D.meta.date_maj} — ${D.chantiers?.length||0} chantiers</div>
+    </div>
+  </div>`:'';
+
+  document.getElementById('tab-import').innerHTML=`
+    ${firstTime?`<div class="alert-item alert-b" style="margin-bottom:20px"><div class="alert-title">Bienvenue</div><div class="alert-msg">Aucune donnée chargée. Importez votre fichier Excel pour démarrer.</div></div>`:''}
+    ${last}
+    <div class="upload-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".xlsx">
+      <div class="upload-icon">📂</div>
+      <div class="upload-title">Importer le fichier Excel</div>
+      <div class="upload-sub">Glissez votre fichier <strong>P_L_2026.xlsx</strong> ici<br>ou cliquez pour sélectionner</div>
+      <label class="upload-btn" for="file-input">Choisir le fichier</label>
+      <div class="upload-status" id="upload-status"></div>
+    </div>
+    <div class="progress-steps" id="import-steps" style="display:none">
+      <div class="step" id="step-read"><div class="step-icon">📖</div><div class="step-label">Lecture</div><div class="step-val" id="step-read-val">—</div></div>
+      <div class="step" id="step-cr"><div class="step-icon">📊</div><div class="step-label">Compte de résultat</div><div class="step-val" id="step-cr-val">—</div></div>
+      <div class="step" id="step-treso"><div class="step-icon">🏦</div><div class="step-label">Trésorerie</div><div class="step-val" id="step-treso-val">—</div></div>
+      <div class="step" id="step-chantiers"><div class="step-icon">🏗</div><div class="step-label">Chantiers</div><div class="step-val" id="step-chantiers-val">—</div></div>
+    </div>
+  `;
+
+  // Drag & drop
+  const dz=document.getElementById('drop-zone');
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};
+  dz.ondragleave=()=>dz.classList.remove('drag');
+  dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');if(e.dataTransfer.files[0])processFile(e.dataTransfer.files[0])};
+  document.getElementById('file-input').onchange=e=>{if(e.target.files[0])processFile(e.target.files[0])};
+}
+
+// ============================================================
+// LECTURE EXCEL CÔTÉ CLIENT
+// ============================================================
+function processFile(file){
+  const status=document.getElementById('upload-status');
+  const steps=document.getElementById('import-steps');
+  status.textContent='Lecture du fichier…';
+  steps.style.display='grid';
+
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      stepDone('read',file.name);
+      status.textContent='Extraction des données…';
+      D=extractFromWorkbook(wb);
+      stepDone('cr','OK');
+      stepDone('treso','OK');
+      stepDone('chantiers',`${D.chantiers?.length||0} chantiers`);
+      saveToStorage();
+      document.getElementById('h-badge').textContent='MàJ: '+D.meta.date_maj+' — '+D.meta.periode_gl;
+      status.innerHTML='<span style="color:var(--green)">✓ Import réussi — données mises à jour</span>';
+      renderAll();
+      renderImportPage(false);
+    }catch(err){
+      status.innerHTML=`<span style="color:var(--red)">✗ Erreur : ${err.message}</span>`;
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function stepDone(id,val){
+  const s=document.getElementById('step-'+id);
+  if(s){s.classList.add('done');document.getElementById('step-'+id+'-val').textContent=val}
+}
+
+// ── Extraction depuis le classeur XLSX ──────────────────────
+function cellVal(ws,addr){const c=ws[addr];return c?c.v:null}
+function colLetter(n){let s='';while(n>0){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26)}return s}
+function addr(col,row){return colLetter(col)+row}
+
+function extractFromWorkbook(wb){
+  const data={};
+  const mois_ecoules=3; // valeur par défaut si non lisible
+
+  // ── Compte de résultat ──────────────────────────────────
+  const wsCR=wb.Sheets['Compte de résultat'];
+  if(wsCR){
+    const me=cellVal(wsCR,'I1')||mois_ecoules;
+    const g=r=>({
+      budget_ann:Math.round(cellVal(wsCR,addr(2,r))||0),
+      budget_pro:Math.round(cellVal(wsCR,addr(3,r))||0),
+      reel:Math.round(cellVal(wsCR,addr(4,r))||0)
+    });
+    data.compte_resultat={
+      mois_ecoules:+me,prorata:+me/12,
+      periode:`Jan — ${['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][+me]} 2026`,
+      ca:g(6),charges_var:g(7),marge:g(8),
+      masse_sal:g(11),frais_gen:g(12),cout_struct:g(13),
+      res_exploit:g(15),res_fin:g(18),res_net:g(20)
+    };
+  }
+
+  // ── BP Tréso ────────────────────────────────────────────
+  const wsBP=wb.Sheets['BP Tréso'];
+  if(wsBP){
+    const treso={mois:[],ouverture:[],encaissements:[],decaissements:[],variation:[],cloture_prev:[],solde_reel:[]};
+    for(let col=2;col<=13;col++){
+      const lbl=cellVal(wsBP,addr(col,3));
+      if(!lbl)break;
+      treso.mois.push(String(lbl));
+      treso.ouverture.push(+(cellVal(wsBP,addr(col,5))||0).toFixed(2));
+      treso.encaissements.push(+(cellVal(wsBP,addr(col,10))||0).toFixed(2));
+      treso.decaissements.push(+(cellVal(wsBP,addr(col,20))||0).toFixed(2));
+      treso.variation.push(+(cellVal(wsBP,addr(col,22))||0).toFixed(2));
+      treso.cloture_prev.push(+(cellVal(wsBP,addr(col,23))||0).toFixed(2));
+      const sr=cellVal(wsBP,addr(col,25));
+      treso.solde_reel.push(sr!=null?+sr.toFixed(2):null);
+    }
+    data.tresorerie=treso;
+  }
+
+  // ── Tréso chantiers ─────────────────────────────────────
+  const wsTC=wb.Sheets['Tréso chantiers'];
+  if(wsTC){
+    const range=XLSX.utils.decode_range(wsTC['!ref']||'A1:A1');
+    // Lire les colonnes mois (ligne 2, cols 6→43)
+    const colMois={};
+    for(let col=6;col<=43;col++){
+      const v=cellVal(wsTC,addr(col,2));
+      if(v instanceof Date){colMois[col]={annee:v.getFullYear(),mois:v.getMonth()+1,label:v.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'}).replace(' ','/')}}
+      else if(v&&String(v).match(/^\d{4}-\d{2}/)){const d=new Date(v);colMois[col]={annee:d.getFullYear(),mois:d.getMonth()+1,label:d.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}}
+    }
+    // Lire les chantiers
+    const chantiers=[];
+    const titreRows=[];
+    for(let row=6;row<=range.e.r+1;row++){
+      const a=cellVal(wsTC,addr(1,row));
+      const b=cellVal(wsTC,addr(2,row));
+      if(a&&String(a).includes('Chantier')&&a!=='Chantiers')titreRows.push({row,nom:String(a).replace('Chantier ','').trim(),statut:b});
+    }
+    const fluxParMois={};
+    titreRows.forEach((tc,i)=>{
+      const nextRow=i+1<titreRows.length?titreRows[i+1].row:range.e.r+2;
+      const flux=[];
+      for(let row=tc.row+1;row<nextRow;row++){
+        const etape=cellVal(wsTC,addr(1,row));
+        const enc=cellVal(wsTC,addr(3,row));
+        const who=cellVal(wsTC,addr(4,row));
+        const mont=cellVal(wsTC,addr(5,row));
+        if(who!=='Franchise'||enc==='oui'||!mont||mont==0)continue;
+        for(const[col,info]of Object.entries(colMois)){
+          const v=cellVal(wsTC,addr(+col,row));
+          if(v&&Math.abs(v)>0.01){
+            flux.push({etape,mois:info.label,annee:info.annee,mois_num:info.mois,montant:Math.round(v*100)/100});
+            if(info.annee===2026){const k=`${info.annee}-${String(info.mois).padStart(2,'0')}`;fluxParMois[k]=(fluxParMois[k]||0)+v}
+          }
+        }
+      }
+      chantiers.push({nom:tc.nom,statut:tc.statut,flux});
+    });
+    data.chantiers=chantiers;
+    data.flux_franchise_2026=Object.fromEntries(Object.entries(fluxParMois).sort());
+  }
+
+  // ── Suivi 2026 ──────────────────────────────────────────
+  const wsS=wb.Sheets['Suivi 2026'];
+  if(wsS){
+    const suivi=[];
+    for(let row=3;row<=35;row++){
+      const b=cellVal(wsS,addr(2,row));
+      if(!b||String(b).includes('ROWS')||String(b).length<4)continue;
+      suivi.push({
+        nom:String(b).replace('Projet ','').replace('Chantier ','').trim(),
+        statut:String(cellVal(wsS,addr(4,row))||''),
+        avancement:+(cellVal(wsS,addr(5,row))||0),
+        ca_2026:Math.round(cellVal(wsS,addr(37,row))||0),
+        marge_2026:Math.round(cellVal(wsS,addr(34,row))||0)
+      });
+    }
+    data.suivi=suivi;
+  }
+
+  // ── Comparatif 2026 ─────────────────────────────────────
+  const wsComp=wb.Sheets['Comparatif 2026'];
+  if(wsComp){
+    const fg=[];
+    for(let row=9;row<=21;row++){
+      const a=cellVal(wsComp,addr(1,row));
+      if(!a||String(a).includes('Total'))continue;
+      fg.push({poste:String(a),budget_ann:+(cellVal(wsComp,addr(2,row))||0),budget_pro:+(cellVal(wsComp,addr(3,row))||0),reel:+(cellVal(wsComp,addr(4,row))||0)});
+    }
+    data.comparatif_charges={
+      frais_gen:fg,
+      masse_sal:{budget_ann:+(cellVal(wsComp,addr(2,25))||0),budget_pro:+(cellVal(wsComp,addr(3,25))||0),reel:+(cellVal(wsComp,addr(4,25))||0)}
+    };
+  }
+
+  // ── Meta ────────────────────────────────────────────────
+  const me=data.compte_resultat?.mois_ecoules||3;
+  const sr=data.tresorerie?.solde_reel?.filter(x=>x!=null).slice(-1)[0]||0;
+  data.meta={date_maj:new Date().toLocaleDateString('fr-FR'),periode_gl:`Jan-${['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][me]} 2026`,mois_ecoules:me,prorata:me/12,solde_banque:sr};
+
+  return data;
+}
+
+// ============================================================
+// RENDU — TRÉSORERIE
+// ============================================================
+function renderTreso(){
+  const t=D.tresorerie; if(!t)return;
+  const sr=t.solde_reel.filter(x=>x!=null);
+  const dernier=sr.slice(-1)[0]||0;
+  const totalFlux=Object.values(D.flux_franchise_2026||{}).reduce((a,b)=>a+b,0);
+  const now=new Date();
+  const flux60=getFluxDays(60);const flux30=getFluxDays(30);
+
+  let html=`<div class="g4">
+    ${kpiCard('Solde réel en banque',kEuro(dernier*1000),'Dernier relevé connu',null)}
+    ${kpiCard('Tréso prévisionnelle fin d\'année',kEuro((t.cloture_prev.slice(-1)[0]||0)*1000),'Déc 2026',null)}
+    ${kpiCard('Flux Franchise à percevoir',euro(totalFlux),'Tous chantiers en cours',null)}
+    ${kpiCard('Flux < 60 jours',euro(flux60),'Encaissements proches',flux30>0?`dont ${euro(flux30)} < 30j`:'',flux30>0?'c-green':'c-dim')}
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-label">Évolution trésorerie 2026 (k€)</div><div class="ch"><canvas id="ch-treso"></canvas></div></div>
+    <div class="card"><div class="card-label">Flux Franchise attendus 2026 (k€)</div><div class="ch"><canvas id="ch-flux"></canvas></div></div>
+  </div>
+  <div class="card"><div class="sec">Détail des encaissements Franchise à venir</div><div id="flux-detail"></div></div>`;
+  document.getElementById('tab-treso').innerHTML=html;
+
+  // Chart tréso
+  mkChart('ch-treso',{type:'line',data:{labels:t.mois,datasets:[
+    {label:'Prévu',data:t.cloture_prev,borderColor:'rgba(79,142,247,.8)',backgroundColor:'rgba(79,142,247,.07)',borderWidth:2,tension:.3,fill:true,pointRadius:2},
+    {label:'Réel',data:t.solde_reel,borderColor:'rgba(45,212,160,.9)',backgroundColor:'rgba(45,212,160,.1)',borderWidth:2.5,tension:.3,fill:true,pointRadius:3,spanGaps:false}
+  ]},options:chartOpts('k€')});
+
+  // Chart flux
+  const months12=['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
+  const mfr=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const fluxData=months12.map(m=>Math.round(((D.flux_franchise_2026||{})[m]||0)/1000*10)/10);
+  mkChart('ch-flux',{type:'bar',data:{labels:mfr,datasets:[{data:fluxData,backgroundColor:fluxData.map(v=>v>0?'rgba(45,212,160,.65)':'rgba(79,142,247,.15)'),borderRadius:4,label:'k€'}]},options:{...chartOpts('k€'),plugins:{legend:{display:false}}}});
+
+  // Détail flux
+  const actifs=D.chantiers.filter(c=>c.statut==='Chantier en cours');
+  const futurs=actifs.flatMap(c=>c.flux.map(f=>({...f,chantier:c.nom}))).filter(f=>f.annee>now.getFullYear()||(f.annee===now.getFullYear()&&f.mois_num>=now.getMonth()+1)).sort((a,b)=>a.annee-b.annee||a.mois_num-b.mois_num);
+  const grp={};futurs.forEach(f=>{if(!grp[f.mois])grp[f.mois]=[];grp[f.mois].push(f)});
+  let fhtml='';
+  Object.entries(grp).slice(0,8).forEach(([m,items])=>{
+    const tot=items.reduce((a,b)=>a+b.montant,0);
+    fhtml+=`<div class="flux-grp"><div class="flux-grp-hdr">${m}<span>${euro(tot)}</span></div>`;
+    items.forEach(f=>{fhtml+=`<div class="flux-item"><div><div class="flux-name">${f.chantier.split('—')[0].trim()}</div><div class="flux-step">${f.etape}</div></div><div class="flux-amt">${euro(f.montant)}</div></div>`});
+    fhtml+='</div>';
+  });
+  document.getElementById('flux-detail').innerHTML=fhtml||'<div class="c-dim" style="font-size:13px;padding:16px 0">Aucun flux Franchise à venir.</div>';
+}
+
+function getFluxDays(d){
+  const now=new Date();const lim=new Date(now.getTime()+d*86400000);
+  return D.chantiers.filter(c=>c.statut==='Chantier en cours').flatMap(c=>c.flux).filter(f=>{const dt=new Date(f.annee,f.mois_num-1,1);return dt>=now&&dt<=lim}).reduce((a,b)=>a+b.montant,0);
+}
+
+// ============================================================
+// RENDU — COMPTE DE RÉSULTAT
+// ============================================================
+function renderCR(){
+  const cr=D.compte_resultat;if(!cr)return;
+  const tm=cr.ca.reel>0?Math.round(cr.marge.reel/cr.ca.reel*100):0;
+  const tmbud=cr.ca.budget_pro>0?Math.round(cr.marge.budget_pro/cr.ca.budget_pro*100):0;
+
+  let html=`<div class="g4">
+    ${kpiCard('CA travaux réel',euro(cr.ca.reel),`Prorata : ${euro(cr.ca.budget_pro)}`,pct(cr.ca.reel,cr.ca.budget_pro)+'% du prorata',pct(cr.ca.reel,cr.ca.budget_pro)>=100?'c-green':'c-orange')}
+    ${kpiCard('Marge de production',euro(cr.marge.reel),`Taux : ${tm}% (bud: ${tmbud}%)`,pct(cr.marge.reel,cr.marge.budget_pro)+'% du prorata',pct(cr.marge.reel,cr.marge.budget_pro)>=80?'c-green':'c-orange')}
+    ${kpiCard('Coût de structure',euro(cr.cout_struct.reel),`Prorata : ${euro(cr.cout_struct.budget_pro)}`,(cr.cout_struct.reel<=cr.cout_struct.budget_pro?'▼ Éco. ':'▲ Dépass. ')+euro(Math.abs(cr.cout_struct.reel-cr.cout_struct.budget_pro)),cr.cout_struct.reel<=cr.cout_struct.budget_pro?'c-green':'c-orange')}
+    ${kpiCard('Résultat net',euro(cr.res_net.reel),`Prorata : ${euro(cr.res_net.budget_pro)}`,cr.res_net.reel>=0?'✓ Bénéficiaire':'⚠ Déficitaire',cr.res_net.reel>=0?'c-green':'c-red')}
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-label">Soldes intermédiaires de gestion</div><div id="sig-tbl"></div></div>
+    <div class="card"><div class="card-label">Répartition réel à date</div><div class="ch"><canvas id="ch-cr"></canvas></div></div>
+  </div>`;
+  document.getElementById('tab-cr').innerHTML=html;
+
+  // SIG
+  const sigs=[
+    {l:'Chiffre d\'affaires',k:'ca',t:'produit'},{l:'— Charges variables chantiers',k:'charges_var',t:'charge'},
+    {l:'▶ Marge de production',k:'marge',t:'total'},{l:'— Masse salariale',k:'masse_sal',t:'charge'},
+    {l:'— Frais généraux',k:'frais_gen',t:'charge'},{l:'▶ Résultat d\'exploitation',k:'res_exploit',t:'total'},
+    {l:'± Résultat financier',k:'res_fin',t:'neutre'},{l:'▶ Résultat net avant IS',k:'res_net',t:'total'}
+  ];
+  let tbl='<table><thead><tr><th>Ligne</th><th class="r">Prorata</th><th class="r">Réel</th><th class="r">Écart</th></tr></thead><tbody>';
+  sigs.forEach(s=>{
+    const d=cr[s.k];const ec=d.reel-d.budget_pro;
+    const ok=s.t==='charge'?ec<=0:ec>=0;
+    const bold=s.t==='total'?'font-weight:700;':'';
+    const rbg=s.t==='total'?'background:rgba(255,255,255,.02);':'';
+    tbl+=`<tr style="${rbg}"><td style="${bold}">${s.l}</td><td class="r">${euro(d.budget_pro)}</td><td class="r" style="${bold}">${euro(d.reel)}</td><td class="r" style="${bold};color:${ok?'var(--green)':'var(--orange)'}">${ec>0?'+':''}${euro(ec)}</td></tr>`;
+  });
+  tbl+='</tbody></table>';
+  document.getElementById('sig-tbl').innerHTML=tbl;
+
+  mkChart('ch-cr',{type:'doughnut',data:{labels:['Charges var.','Masse sal.','Frais géné.','Résultat net'],datasets:[{data:[cr.charges_var.reel,cr.masse_sal.reel,cr.frais_gen.reel,Math.max(0,cr.res_net.reel)],backgroundColor:['rgba(79,142,247,.7)','rgba(245,162,62,.7)','rgba(122,135,153,.5)','rgba(45,212,160,.7)'],borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#7a8799',font:{size:11},padding:10}}}}});
+}
+
+// ============================================================
+// RENDU — CHANTIERS
+// ============================================================
+function renderChantiers(){
+  const ch=D.chantiers;if(!ch)return;
+  const actifs=ch.filter(c=>c.statut==='Chantier en cours');
+  const livres=ch.filter(c=>c.statut==='Chantier livré');
+  const sv=D.suivi||[];
+  const caT=sv.reduce((a,b)=>a+(b.ca_2026||0),0);
+  const mgT=sv.reduce((a,b)=>a+(b.marge_2026||0),0);
+  const tx=caT>0?Math.round(mgT/caT*100):0;
+  const fluxT=Object.values(D.flux_franchise_2026||{}).reduce((a,b)=>a+b,0);
+
+  let html=`<div class="g4">
+    ${kpiCard('Chantiers en cours',actifs.length,`${livres.length} livrés`,null)}
+    ${kpiCard('CA portefeuille 2026',euro(caT),'Suivi 2026',null)}
+    ${kpiCard('Marge portefeuille 2026',euro(mgT),null,`Taux : ${tx}%`,tx>=18?'c-green':tx>=12?'c-orange':'c-red')}
+    ${kpiCard('Flux Franchise 2026',euro(fluxT),'À percevoir',null)}
+  </div>
+  <div class="card"><div class="sec">Chantiers en cours</div><div class="tbl-wrap"><table>
+    <thead><tr><th>Chantier</th><th>Stade</th><th>Avanct.</th><th class="r">CA 2026</th><th class="r">Marge 2026</th><th class="r">Prochain flux</th></tr></thead>
+    <tbody id="tbody-ch"></tbody>
+  </table></div></div>`;
+  document.getElementById('tab-chantiers').innerHTML=html;
+
+  let rows='';
+  actifs.forEach(c=>{
+    const s=sv.find(x=>x.nom.toLowerCase().split('/')[0].trim()===c.nom.toLowerCase().split('/')[0].replace(/—.*/,'').trim().split('/')[0].trim());
+    const av=s?Math.round(s.avancement*100):0;
+    const stade=s?s.statut.replace('Achèvement des ','').replace('Livraison de kits et ravalement','Kits').replace("Mise hors d'eau",'H. d\'eau').replace('1.1 Administratif validé prêt à ouvrir','Administratif').replace('9. Réception','Réception').substring(0,18):'—';
+    const nxt=c.flux.slice().sort((a,b)=>a.annee-b.annee||a.mois_num-b.mois_num)[0];
+    rows+=`<tr>
+      <td><strong>${c.nom.split('—')[0].trim()}</strong></td>
+      <td><span class="pill pill-b">${stade}</span></td>
+      <td><div style="min-width:80px"><div style="font-size:11px;color:var(--text2);margin-bottom:2px">${av}%</div><div class="bar"><div class="bar-fill" style="width:${av}%;background:var(--accent)"></div></div></div></td>
+      <td class="r">${s?euro(s.ca_2026):'—'}</td>
+      <td class="r">${s?euro(s.marge_2026):'—'}</td>
+      <td class="r">${nxt?`<span style="color:var(--green);font-family:var(--mono)">${euro(nxt.montant)}</span><br><span style="font-size:11px;color:var(--text2)">${nxt.mois}</span>`:'<span class="c-dim">—</span>'}</td>
+    </tr>`;
+  });
+  document.getElementById('tbody-ch').innerHTML=rows||'<tr><td colspan="6" style="color:var(--text2);text-align:center;padding:20px">Aucun chantier en cours</td></tr>';
+}
+
+// ============================================================
+// RENDU — CHARGES
+// ============================================================
+function renderCharges(){
+  const cc=D.comparatif_charges;const cr=D.compte_resultat;
+  if(!cc||!cr)return;
+  const p_tot=pct(cr.cout_struct.reel,cr.cout_struct.budget_pro);
+
+  let html=`<div class="g4">
+    ${kpiCard('Charges réelles',euro(cr.cout_struct.reel),D.meta.periode_gl,null)}
+    ${kpiCard('Budget prorata',euro(cr.cout_struct.budget_pro),'Référence',null)}
+    ${kpiCard('Écart',euro(cr.cout_struct.reel-cr.cout_struct.budget_pro),null,(cr.cout_struct.reel<=cr.cout_struct.budget_pro?'▼ Éco. ':'▲ Dépass. ')+euro(Math.abs(cr.cout_struct.reel-cr.cout_struct.budget_pro)),cr.cout_struct.reel<=cr.cout_struct.budget_pro?'c-green':'c-orange')}
+    ${kpiCard('Consommation',p_tot+'%','du budget prorata',null,p_tot<=100?'c-green':p_tot<=130?'c-orange':'c-red')}
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-label">Frais généraux vs prorata (€)</div><div class="ch-lg"><canvas id="ch-fg"></canvas></div></div>
+    <div class="card"><div class="card-label">Détail par poste</div><div class="tbl-wrap"><table>
+      <thead><tr><th>Poste</th><th class="r">Prorata</th><th class="r">Réel</th><th class="r">%</th><th>Statut</th></tr></thead>
+      <tbody id="tbody-charges"></tbody>
+    </table></div></div>
+  </div>`;
+  document.getElementById('tab-charges').innerHTML=html;
+
+  const all=[...cc.frais_gen,{poste:'Masse salariale',budget_pro:cc.masse_sal.budget_pro,reel:cc.masse_sal.reel}].filter(p=>p.budget_pro>0||p.reel>0);
+  mkChart('ch-fg',{type:'bar',data:{labels:all.map(p=>p.poste.length>16?p.poste.substring(0,16)+'…':p.poste),datasets:[
+    {label:'Prorata',data:all.map(p=>p.budget_pro),backgroundColor:'rgba(79,142,247,.25)',borderRadius:3},
+    {label:'Réel',data:all.map(p=>p.reel),backgroundColor:all.map(p=>p.reel>p.budget_pro?'rgba(239,83,80,.7)':'rgba(45,212,160,.65)'),borderRadius:3}
+  ]},options:chartOpts('€')});
+
+  let rows='';
+  all.forEach(p=>{
+    const pv=pct(p.reel,p.budget_pro);
+    rows+=`<tr><td style="font-size:12px">${p.poste}</td><td class="r">${euro(p.budget_pro)}</td><td class="r">${euro(p.reel)}</td><td class="r" style="color:${pv===null?'var(--text2)':pv<=100?'var(--green)':pv<=130?'var(--orange)':'var(--red)'}">${pv!=null?pv+'%':'—'}</td><td><span class="pill pill-${pillCls(pv)}">${pillLbl(pv)}</span></td></tr>`;
+  });
+  document.getElementById('tbody-charges').innerHTML=rows;
+}
+
+// ============================================================
+// RENDU — ALERTES
+// ============================================================
+function renderAlertes(){
+  const cr=D.compte_resultat;const alertes=[];
+  if(cr){
+    const pn=pct(cr.res_net.reel,cr.res_net.budget_pro);
+    if(pn!==null&&pn<50)alertes.push({t:'r',title:'Résultat net très en dessous du prorata',msg:`${euro(cr.res_net.reel)} réalisé vs ${euro(cr.res_net.budget_pro)} attendu (${pn}%).`});
+    const pm=pct(cr.marge.reel,cr.marge.budget_pro);
+    if(pm!==null&&pm<80)alertes.push({t:'o',title:'Marge de production sous l\'objectif prorata',msg:`${euro(cr.marge.reel)} réalisé vs ${euro(cr.marge.budget_pro)} attendu (${pm}%). Taux réel : ${Math.round(cr.marge.reel/cr.ca.reel*100)}%.`});
+  }
+  if(D.comparatif_charges){
+    D.comparatif_charges.frais_gen.forEach(p=>{
+      const pv=pct(p.reel,p.budget_pro);
+      if(pv!==null&&pv>130)alertes.push({t:'r',title:`Dépassement : ${p.poste}`,msg:`${euro(p.reel)} réel vs ${euro(p.budget_pro)} prorata (${pv}%).`});
+      else if(pv!==null&&pv>100)alertes.push({t:'o',title:`Attention : ${p.poste}`,msg:`${euro(p.reel)} réel vs ${euro(p.budget_pro)} prorata (${pv}%).`});
+    });
+  }
+  if(D.chantiers){
+    const gros=D.chantiers.flatMap(c=>c.flux).filter(f=>f.montant>15000);
+    if(gros.length>0)alertes.push({t:'b',title:`${gros.length} encaissement(s) importants à venir (>15 000 €)`,msg:gros.slice(0,3).map(f=>`${f.chantier?.split('—')[0]||''} : ${euro(f.montant)} — ${f.mois}`).join(' | ')});
+  }
+  if(alertes.length===0)alertes.push({t:'g',title:'Tout est dans les paramètres',msg:'Aucune alerte détectée sur la période en cours.'});
+
+  const icons={r:'⛔',o:'⚡',g:'✅',b:'ℹ️'};
+  document.getElementById('tab-alertes').innerHTML='<div class="card"><div class="sec">Points d\'attention</div>'+
+    alertes.map(a=>`<div class="alert-item alert-${a.t}"><div class="alert-title">${icons[a.t]} ${a.title}</div><div class="alert-msg">${a.msg}</div></div>`).join('')+'</div>';
+}
+
+// ============================================================
+// CHART OPTS
+// ============================================================
+function chartOpts(unit){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7a8799',font:{size:11}}}},scales:{x:{ticks:{color:'#3a4454',font:{size:9}},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#3a4454',font:{size:10},callback:v=>v+' '+unit},grid:{color:'rgba(255,255,255,.03)'}}}}};
+}
+</script>
+</body>
+</html>
